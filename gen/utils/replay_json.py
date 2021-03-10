@@ -12,7 +12,7 @@ def replay_json(env, json_file):
     object_toggles = traj_data['scene']['object_toggles']
 
     scene_name = 'FloorPlan%d' % scene_num
-    env.reset(scene_name)
+    env.rreset(scene_name)
     env.restore_scene(object_poses, object_toggles, dirty_and_empty)
 
     # initialize

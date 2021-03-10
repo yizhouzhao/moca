@@ -1,7 +1,7 @@
 import os
 import sys
-sys.path.append(os.path.join(os.environ['ALFRED_ROOT']))
-sys.path.append(os.path.join(os.environ['ALFRED_ROOT'], 'gen'))
+sys.path.append(os.path.join(os.getcwd()))
+sys.path.append(os.path.join(os.getcwd(), '..'))
 
 import time
 import multiprocessing as mp
@@ -546,7 +546,7 @@ def main(args):
                 # based on stored object and toggle info. This should put objects closer to the final positions they'll
                 # be inlay at inference time (e.g., mugs fallen and broken, knives fallen over, etc.).
                 print("Performing reset via thor_env API")
-                env.reset(sampled_scene)
+                env.rreset(sampled_scene)
                 print("Performing restore via thor_env API")
                 env.restore_scene(object_poses, object_toggles, dirty_and_empty)
                 event = env.step(dict(constants.data_dict['scene']['init_action']))

@@ -118,7 +118,7 @@ def augment_traj(env, json_file):
 
     # reset
     scene_name = 'FloorPlan%d' % scene_num
-    env.reset(scene_name)
+    env.rreset(scene_name)
     env.restore_scene(object_poses, object_toggles, dirty_and_empty)
 
     env.step(dict(traj_data['scene']['init_action']))

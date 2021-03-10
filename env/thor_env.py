@@ -28,9 +28,9 @@ class ThorEnv(Controller):
 
         super().__init__(quality=quality)
         self.local_executable_path = build_path
-        self.start(x_display=x_display,
-                   player_screen_height=player_screen_height,
-                   player_screen_width=player_screen_width)
+        # self.start(x_display=x_display,
+        #            height=player_screen_height,
+        #            width=player_screen_width)
         self.task = None
 
         # internal states
@@ -40,7 +40,7 @@ class ThorEnv(Controller):
 
         print("ThorEnv started.")
 
-    def reset(self, scene_name_or_num,
+    def rreset(self, scene_name_or_num,
               grid_size=constants.AGENT_STEP_SIZE / constants.RECORD_SMOOTHING_FACTOR,
               camera_y=constants.CAMERA_HEIGHT_OFFSET,
               render_image=constants.RENDER_IMAGE,
@@ -72,7 +72,7 @@ class ThorEnv(Controller):
         ))
 
         # reset task if specified
-        if self.task is not None:
+        if hasattr(self, "task") and self.task is not None:
             self.task.reset()
 
         # clear object state changes
@@ -122,23 +122,23 @@ class ThorEnv(Controller):
         task_type = traj['task_type']
         self.task = get_task(task_type, traj, self, args, reward_type=reward_type, max_episode_length=max_episode_length)
 
-    def step(self, action, smooth_nav=False):
+    def sstep(self, action, smooth_nav=False):
         '''
         overrides ai2thor.controller.Controller.step() for smooth navigation and goal_condition updates
         '''
         if smooth_nav:
-            if "MoveAhead" in action['action']:
+            if isinstance(action, dict) and "MoveAhead" in action['action']:
                 self.smooth_move_ahead(action)
-            elif "Rotate" in action['action']:
+            elif isinstance(action, dict) and "Rotate" in action['action']:
                 self.smooth_rotate(action)
-            elif "Look" in action['action']:
+            elif isinstance(action, dict) and "Look" in action['action']:
                 self.smooth_look(action)
             else:
                 super().step(action)
         else:
-            if "LookUp" in action['action']:
+            if isinstance(action, dict) and "LookUp" in action['action']:
                 self.look_angle(-constants.AGENT_HORIZON_ADJ)
-            elif "LookDown" in action['action']:
+            elif isinstance(action, dict) and "LookDown" in action['action']:
                 self.look_angle(constants.AGENT_HORIZON_ADJ)
             else:
                 super().step(action)
@@ -151,7 +151,7 @@ class ThorEnv(Controller):
         '''
         handle special action post-conditions
         '''
-        if action['action'] == 'ToggleObjectOn':
+        if isinstance(action, dict) and action['action'] == 'ToggleObjectOn':
             self.check_clean(action['objectId'])
 
     def update_states(self, action):
@@ -160,7 +160,7 @@ class ThorEnv(Controller):
         '''
         # add 'cleaned' to all object that were washed in the sink
         event = self.last_event
-        if event.metadata['lastActionSuccess']:
+        if isinstance(action, dict) and event.metadata['lastActionSuccess']:
             # clean
             if action['action'] == 'ToggleObjectOn' and "Faucet" in action['objectId']:
                 sink_basin = get_obj_of_type_closest_to_obj('SinkBasin', action['objectId'], event.metadata)
@@ -394,11 +394,11 @@ class ThorEnv(Controller):
         if "RotateLeft" in action:
             action = dict(action="RotateLeft",
                           forceAction=True)
-            event = self.step(action, smooth_nav=smooth_nav)
+            event = self.sstep(action, smooth_nav=smooth_nav)
         elif "RotateRight" in action:
             action = dict(action="RotateRight",
                           forceAction=True)
-            event = self.step(action, smooth_nav=smooth_nav)
+            event = self.sstep(action, smooth_nav=smooth_nav)
         elif "MoveAhead" in action:
             action = dict(action="MoveAhead",
                           forceAction=True)
@@ -406,25 +406,25 @@ class ThorEnv(Controller):
         elif "LookUp" in action:
             action = dict(action="LookUp",
                           forceAction=True)
-            event = self.step(action, smooth_nav=smooth_nav)
+            event = self.sstep(action, smooth_nav=smooth_nav)
         elif "LookDown" in action:
             action = dict(action="LookDown",
                           forceAction=True)
-            event = self.step(action, smooth_nav=smooth_nav)
+            event = self.sstep(action, smooth_nav=smooth_nav)
         elif "OpenObject" in action:
             action = dict(action="OpenObject",
                           objectId=object_id,
                           moveMagnitude=1.0)
-            event = self.step(action)
+            event = self.sstep(action)
         elif "CloseObject" in action:
             action = dict(action="CloseObject",
                           objectId=object_id,
                           forceAction=True)
-            event = self.step(action)
+            event = self.sstep(action)
         elif "PickupObject" in action:
             action = dict(action="PickupObject",
                           objectId=object_id)
-            event = self.step(action)
+            event = self.sstep(action)
         elif "PutObject" in action:
             inventory_object_id = self.last_event.metadata['inventoryObjects'][0]['objectId']
             action = dict(action="PutObject",
@@ -432,16 +432,16 @@ class ThorEnv(Controller):
                           receptacleObjectId=object_id,
                           forceAction=True,
                           placeStationary=True)
-            event = self.step(action)
+            event = self.sstep(action)
         elif "ToggleObjectOn" in action:
             action = dict(action="ToggleObjectOn",
                           objectId=object_id)
-            event = self.step(action)
+            event = self.sstep(action)
 
         elif "ToggleObjectOff" in action:
             action = dict(action="ToggleObjectOff",
                           objectId=object_id)
-            event = self.step(action)
+            event = self.sstep(action)
         elif "SliceObject" in action:
             # check if agent is holding knife in hand
             inventory_objects = self.last_event.metadata['inventoryObjects']
@@ -450,7 +450,7 @@ class ThorEnv(Controller):
 
             action = dict(action="SliceObject",
                           objectId=object_id)
-            event = self.step(action)
+            event = self.sstep(action)
         else:
             raise Exception("Invalid action. Conversion to THOR API failed! (action='" + str(action) + "')")
 
@@ -465,12 +465,12 @@ class ThorEnv(Controller):
         event = self.last_event
         if event.metadata['lastActionSuccess'] and 'Faucet' in object_id:
             # Need to delay one frame to let `isDirty` update on stream-affected.
-            event = self.step({'action': 'Pass'})
+            event = self.sstep({'action': 'Pass'})
             sink_basin_obj = game_util.get_obj_of_type_closest_to_obj("SinkBasin", object_id, event.metadata)
             for in_sink_obj_id in sink_basin_obj['receptacleObjectIds']:
                 if (game_util.get_object(in_sink_obj_id, event.metadata)['dirtyable']
                         and game_util.get_object(in_sink_obj_id, event.metadata)['isDirty']):
-                    event = self.step({'action': 'CleanObject', 'objectId': in_sink_obj_id})
+                    event = self.sstep({'action': 'CleanObject', 'objectId': in_sink_obj_id})
         return event
 
     def prune_by_any_interaction(self, instances_ids):
