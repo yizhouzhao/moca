@@ -1,4 +1,4 @@
-from gen.utils.game_util import get_object
+from gen.utils.game_util import get_object2
 
 class BaseAction(object):
     '''
@@ -43,7 +43,8 @@ class GotoLocationAction(BaseAction):
         # Consider navigation a success if we can see the target object in the next step from here.
         assert len(expert_plan) > goal_idx + 1
         next_subgoal = expert_plan[goal_idx + 1]['planner_action']
-        next_goal_object = get_object(next_subgoal['objectId'], state.metadata)
+        next_goal_object = get_object2(next_subgoal['objectId'], state.metadata)
+        #print("env.reward ", next_subgoal, next_subgoal['objectId'])
         done = next_goal_object['visible'] and curr_distance < self.rewards['min_reach_distance']
 
         if done:
@@ -89,7 +90,7 @@ class PutObjectAction(BaseAction):
         subgoal = expert_plan[goal_idx]['planner_action']
         reward, done = self.rewards['neutral'], False
         target_object_id = subgoal['objectId']
-        recep_object = get_object(subgoal['receptacleObjectId'], state.metadata)
+        recep_object = get_object2(subgoal['receptacleObjectId'], state.metadata)
         if recep_object is not None:
             is_target_in_recep = target_object_id in recep_object['receptacleObjectIds']
             reward, done = (self.rewards['positive'], True) if is_target_in_recep else (self.rewards['negative'], False)
@@ -110,7 +111,7 @@ class OpenObjectAction(BaseAction):
 
         subgoal = expert_plan[goal_idx]['planner_action']
         reward, done = self.rewards['neutral'], False
-        target_recep = get_object(subgoal['objectId'], state.metadata)
+        target_recep = get_object2(subgoal['objectId'], state.metadata)
         if target_recep is not None:
             is_target_open = target_recep['isOpen']
             reward, done = (self.rewards['positive'], True) if is_target_open else (self.rewards['negative'], False)
@@ -131,7 +132,7 @@ class CloseObjectAction(BaseAction):
 
         subgoal = expert_plan[goal_idx]['planner_action']
         reward, done = self.rewards['negative'], False
-        target_recep = get_object(subgoal['objectId'], state.metadata)
+        target_recep = get_object2(subgoal['objectId'], state.metadata)
         if target_recep is not None:
             is_target_closed = not target_recep['isOpen']
             reward, done = (self.rewards['positive'], True) if is_target_closed else (self.rewards['negative'], False)
@@ -152,7 +153,7 @@ class ToggleObjectAction(BaseAction):
 
         subgoal = expert_plan[goal_idx]['planner_action']
         reward, done = self.rewards['neutral'], False
-        target_toggle = get_object(subgoal['objectId'], state.metadata)
+        target_toggle = get_object2(subgoal['objectId'], state.metadata)
         if target_toggle is not None:
             is_target_toggled = target_toggle['isToggled']
             reward, done = (self.rewards['positive'], True) if is_target_toggled else (self.rewards['negative'], False)
@@ -173,7 +174,7 @@ class SliceObjectAction(BaseAction):
 
         subgoal = expert_plan[goal_idx]['planner_action']
         reward, done = self.rewards['neutral'], False
-        target_object = get_object(subgoal['objectId'], state.metadata)
+        target_object = get_object2(subgoal['objectId'], state.metadata)
         if target_object is not None:
             is_target_sliced = target_object['isSliced']
             reward, done = (self.rewards['positive'], True) if is_target_sliced else (self.rewards['negative'], False)
@@ -194,7 +195,7 @@ class CleanObjectAction(BaseAction):
 
         subgoal = expert_plan[goal_idx]['planner_action']
         reward, done = self.rewards['neutral'], False
-        clean_object = get_object(subgoal['cleanObjectId'], state.metadata)
+        clean_object = get_object2(subgoal['cleanObjectId'], state.metadata)
         if clean_object is not None:
             is_obj_clean = clean_object['objectId'] in self.env.cleaned_objects
             reward, done = (self.rewards['positive'], True) if is_obj_clean else (self.rewards['negative'], False)
@@ -217,7 +218,7 @@ class HeatObjectAction(BaseAction):
         next_put_goal_idx = goal_idx+2 # (+1) GotoLocation -> (+2) PutObject (get the objectId from the PutObject action)
         if next_put_goal_idx < len(expert_plan):
             heat_object_id = expert_plan[next_put_goal_idx]['planner_action']['objectId']
-            heat_object = get_object(heat_object_id, state.metadata)
+            heat_object = get_object2(heat_object_id, state.metadata)
             is_obj_hot = heat_object['objectId'] in self.env.heated_objects
             reward, done = (self.rewards['positive'], True) if is_obj_hot else (self.rewards['negative'], False)
         return reward, done
@@ -239,7 +240,7 @@ class CoolObjectAction(BaseAction):
         next_put_goal_idx = goal_idx+2 # (+1) GotoLocation -> (+2) PutObject (get the objectId from the PutObject action)
         if next_put_goal_idx < len(expert_plan):
             cool_object_id = expert_plan[next_put_goal_idx]['planner_action']['objectId']
-            cool_object = get_object(cool_object_id, state.metadata)
+            cool_object = get_object2(cool_object_id, state.metadata)
             is_obj_cool = cool_object['objectId'] in self.env.cooled_objects
             reward, done = (self.rewards['positive'], True) if is_obj_cool else (self.rewards['negative'], False)
         return reward, done

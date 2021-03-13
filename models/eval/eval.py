@@ -108,11 +108,13 @@ class Eval(object):
         object_toggles = traj_data['scene']['object_toggles']
 
         scene_name = 'FloorPlan%d' % scene_num
-        env.reset(scene_name)
+        env.rreset(scene_name)
         env.restore_scene(object_poses, object_toggles, dirty_and_empty)
 
         # initialize to start position
-        env.step(dict(traj_data['scene']['init_action']))
+        init_action = dict(traj_data['scene']['init_action'])
+        init_action["standing"] = True
+        env.step(init_action)
 
         # print goal instr
         print("Task: %s" % (traj_data['turk_annotations']['anns'][r_idx]['task_desc']))

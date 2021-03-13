@@ -5,7 +5,7 @@ import torch
 import copy
 import progressbar
 from vocab import Vocab
-from model.seq2seq import Module as model
+from models.model.seq2seq import Module as model
 from gen.utils.py_util import remove_spaces_and_lower
 
 

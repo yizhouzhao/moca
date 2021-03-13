@@ -2,8 +2,8 @@ import copy
 import random
 import cv2
 import numpy as np
-import constants
-import goal_library as glib
+import gen.constants as constants
+import gen.goal_library as glib
 
 
 def get_pose(event):
@@ -279,6 +279,13 @@ def get_action_str(action):
 def get_object(object_id, metadata):
     for obj in metadata['objects']:
         if obj['objectId'] == object_id:
+            return obj
+    return None
+
+def get_object2(object_id, metadata):
+    object_type_name = object_id.split("|")[0]
+    for obj in metadata['objects']:
+        if object_type_name == obj['objectType']:
             return obj
     return None
 

@@ -113,7 +113,7 @@ class ThorEnv(Controller):
             super().step(dict(action='SetStateOfAllObjects',
                                StateChange="CanBeFilled",
                                forceAction=False))
-        super().step((dict(action='SetObjectPoses', objectPoses=object_poses)))
+        #super().step((dict(action='SetObjectPoses', objectPoses=object_poses)))
 
     def set_task(self, traj, args, reward_type='sparse', max_episode_length=2000):
         '''
