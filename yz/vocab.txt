@@ -85,3 +85,9 @@ handtowel
 winebottle
 newspaper
 tennisracket
+saltshaker
+laptop
+glassbottle
+plunger
+baseballbat
+

@@ -40,7 +40,7 @@ def set_up_args():
     parser.add_argument('--resume', help='load a checkpoint')
 
     # hyper parameters
-    parser.add_argument('--batch', help='batch size', default=4, type=int)
+    parser.add_argument('--batch', help='batch size', default=8, type=int)
     parser.add_argument('--epoch', help='number of epochs', default=50, type=int)
     parser.add_argument('--lr', help='optimizer learning rate', default=7e-6, type=float)
     parser.add_argument('--decay_epoch', help='num epoch to adjust learning rate', default=10, type=int)
@@ -94,7 +94,6 @@ def load_task_and_plan_json(args, split_type = "train"):
         with open(json_path) as f:
             ex = json.load(f)
             #len_pddl = len(ex['plan']['high_pddl'])
-            #print(ex)
             plans = []
             for item in ex['plan']['high_pddl']:
                 #print(item)
@@ -105,8 +104,14 @@ def load_task_and_plan_json(args, split_type = "train"):
                 
             task_desc = []
             for item in ex['turk_annotations']['anns']:
-                task_desc.append(item['task_desc'])
-            
+                task_desc_all = item['task_desc'] + " "
+                for high_desc in item['high_descs']:
+                    high_desc = high_desc.strip().lower()
+                    if high_desc[-1] != ".":
+                        high_desc += "."
+                    task_desc_all += high_desc + " "
+
+                task_desc.append(task_desc_all)
             
         task2plan_split.append({"task_desc":task_desc, "plans":plans})
 
@@ -144,8 +149,8 @@ class TaskPlanDataset(Dataset):
             plans_codes = []
 
             for plan in plans:
-                action = plan[0]
-                action_arg = "NoArg" if plan[1] is None else plan[1]
+                action = plan[0].strip()
+                action_arg = "NoArg" if plan[1] is None else plan[1].strip()
 
                 plans_codes.append(action)
                 plans_codes.append(action_arg)
@@ -157,9 +162,6 @@ class TaskPlanDataset(Dataset):
                 if action_arg not in self.allword2index:
                     action_code = len(self.allword2index)
                     self.allword2index[action_arg] = action_code
-
-
-
 
                 self.raw_plans.append(plans)
             # plan_codes = []
@@ -215,9 +217,7 @@ class BasicTokenizer(object):
         max_length = max([len(item.split()) for item in input_string_list])
         for input_string in input_string_list:
             tokenized_line = [1]
-            words = input_string.split(" ")
-            if len(words) > max_length:
-                max_length =  len(words)
+            words = input_string.split()
             for word in words:
                 tokenized_line.append(self.vocab[word])
             for j in range(max_length - len(words)):
