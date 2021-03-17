@@ -40,8 +40,8 @@ def set_up_args():
 
     # hyper parameters
     parser.add_argument('--batch', help='batch size', default=8, type=int)
-    parser.add_argument('--epoch', help='number of epochs', default=50, type=int)
-    parser.add_argument('--lr', help='optimizer learning rate', default=7e-6, type=float)
+    parser.add_argument('--epoch', help='number of epochs', default=20, type=int)
+    parser.add_argument('--lr', help='optimizer learning rate', default=2e-6, type=float)
     parser.add_argument('--decay_epoch', help='num epoch to adjust learning rate', default=10, type=int)
     parser.add_argument('--dhid', help='hidden layer size', default=512, type=int)
     parser.add_argument('--dframe', help='image feature vec size', default=3*7*7, type=int)
@@ -87,7 +87,7 @@ def load_task_and_plan_json(args, split_type = "train"):
     d = splits[k]
 
     task2plan_split = []
-    for task in tqdm(d):
+    for task in tqdm(d[:500]):
         # load json file
         json_path = os.path.join(args.data, k, task['task'], 'traj_data.json')
         with open(json_path) as f:
@@ -199,6 +199,7 @@ class TaskPlanDataset(Dataset):
 class BasicTokenizer(object):
     def __init__(self, vocab_file):
         self.vocab = self.load_vocab(vocab_file)
+        self.vocab_verse = {v:k for k,v in self.vocab.items()}
     
     def load_vocab(self, vocab_file):
         """Loads a vocabulary file into a dictionary."""
@@ -225,6 +226,16 @@ class BasicTokenizer(object):
             tokenized_list.append(tokenized_line)
 
         return tokenized_list
+    
+    def decode(self, ouput_labels):
+        decoded_string_list = []
+        for s in ouput_labels:
+            decoded_string = ""
+            for word_index in s:
+                decoded_string += self.vocab_verse[word_index] + " "
+            decoded_string_list.append(decoded_string)
+        
+        return decoded_string_list
 
 def calculate_accuracy(logits, labels):
     acc_maxtrix = torch.argmax(logits, dim = -1) == labels
