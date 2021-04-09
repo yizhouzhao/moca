@@ -1,15 +1,16 @@
 from yz.nav_tools import FrameInfo
 from yz.params import *
-from yz.rl_policy import PolicyNetwork
+from yz.rl_policy import PolicyNetwork, QNetwork
 
 from ai2thor.controller import Controller
-from collections impoort deque
+from collections import deque
 
+import random
 import numpy as np
 import torch
 
 class QueryAgent():
-    def __init__(self, scTrueene, target, room_object_types = G_livingroom_objtype):
+    def __init__(self, scene, target, room_object_types = G_livingroom_objtype):
         # ai2thor
         self.room_object_types = room_object_types
         self.controller = Controller(scene=scene, 
@@ -35,14 +36,15 @@ class QueryAgent():
 
         # reward
         self.time_penalty = -0.1
+        self.action_fail_penalty = -0.5
 
         self.first_seen = False
-        self.first_seen_reward = 1 # reward for finding the object initially
+        self.first_seen_reward = 10 # reward for finding the object initially
 
         self.first_in_range = False
-        self.first_in_range_reward = 5.0 # object in interaction range
+        self.first_in_range_reward = 50.0 # object in interaction range
 
-        self.mission_success_reward = 10.0 # object in interaction range and done
+        self.mission_success_reward = 100.0 # object in interaction range and done
 
         # init event
         self.event = None
@@ -56,9 +58,20 @@ class QueryAgent():
         input_dim = len(self.observation)
         hidden_dim = 64
         output_dim = 6
-        self.p1 = PolicyNetwork(input_dim, hidden_dim, output_dim)
+        self.policy = PolicyNetwork(input_dim, hidden_dim, output_dim)
+
+        self.q1 = QNetwork(input_dim + output_dim, hidden_dim)
+        self.q2 = QNetwork(input_dim + output_dim, hidden_dim)
+
         if self.use_gpu:
-            self.p1 = self.p1.cuda()
+            self.policy = self.policy.cuda()
+            self.q1 = self.q1.cuda()
+            self.q2 = self.q2.cuda()
+
+        # learning
+        self.batch_size = 4
+        self.learning_rate = 0.001
+        self.temparature = 1
 
     def ret_scene_and_target(self, scene: str, target: str):
         self.controller.reset(scene=scene)
@@ -73,15 +86,19 @@ class QueryAgent():
             current_state_tensor = torch.FloatTensor(current_state).unsqueeze(0)
             if self.use_gpu:
                 current_state_tensor = current_state_tensor.to("cuda")
-            action_prob = self.p1(current_state_tensor)
+            action_prob = self.policy(current_state_tensor)
             
             action_code = torch.argmax(action_prob, dim = -1)[0].item()
 
         self.step(action_code)
         next_observation = self.get_observation()
+        
         # calulate reward
         reward = self.time_penalty
         
+        if not self.event.metadata["lastActionSuccess"]:
+            reward += self.action_fail_penalty
+
         frame_info = FrameInfo(self.event)
         if not self.first_seen:
             for obj in frame_info.object_info:
@@ -146,8 +163,29 @@ class QueryAgent():
 
         return state
 
+    def learn(self):
+        # sample history
+        sample_list = random.sample(self.history, self.batch_size)
+        s0 = [sample_list[i][0] for i in range(self.batch_size)]
+        a = [sample_list[i][1] for i in range(self.batch_size)]
+        r = [sample_list[i][2] for i in range(self.batch_size)]
+        s1 = [sample_list[i][3] for i in range(self.batch_size)]
+        d = [int(sample_list[i][4]) for i in range(self.batch_size)]
+        
+        s0 = torch.FloatTensor(s0)
+        a = torch.LongTensor(a)
+        r = torch.FloatTensor(r)
+        s1 = torch.FloatTensor(s1)
+        d = torch.FloatTensor(d)
+
+        if self.use_gpu:
+            s0 = s0.to("cuda")
+            a = a.to("cuda")
+            r = r.to("cuda")
+            s1 = s1.to("cuda")
+            d = d.to("cuda")
+
     def close(self):
         self.controller.stop()
 
-    
 

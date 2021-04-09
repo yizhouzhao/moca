@@ -8,3 +8,5 @@ G_bathroom_objtype = ['Faucet', 'Window', 'BathtubBasin', 'ShowerCurtain', 'Floo
 
 G_action2code = {"MoveAhead": 0, "RotateLeft":1, "RotateRight":2, "LookUp":3, "LookDown":4, "Done":5}
 G_action_code2action = {v:k for (k, v) in G_action2code.items()}
+
+maxstep_in_episode = 100
