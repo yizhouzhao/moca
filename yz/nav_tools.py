@@ -1,8 +1,6 @@
 import numpy as np
 import copy
 
-from yz.utils import distance_between_position
-
 from ai2thor.server import Event
 from ai2thor.controller import Controller
 
@@ -25,19 +23,65 @@ class FrameInfo():
                              "distance": item["distance"]
         } for item in event.metadata["objects"]]
 
+        # get objtype 2 index
+        self.objType2Index = {}
+        for i in range(len(self.object_info)):
+            if self.object_info[i]["objectType"] not in self.objType2Index:
+                # only get the first item
+                self.objType2Index[self.object_info[i]["objectType"]] = i
+
         # get scene obj types
-        self.object_types = []
-        for item in self.instance_detections2D:
+        self.all_object_types = []
+        #self.all_objectType2Index = {}
+        for i, item in enumerate(self.instance_detections2D):
             obj_t = item.split("|")[0]
             if not obj_t.startswith("FP"):
-                self.object_types.append(obj_t)
+                self.all_object_types.append(obj_t)
+                # if obj_t not in self.all_objectType2Index:
+                #     self.all_objectType2Index[obj_t] = i
     
     @staticmethod
     def build_candidates(my_candidates:list):
         FrameInfo.candidates = my_candidates
 
-    def get_answer_array_for_candidates(self):
+    def get_answer_array_for_one_candidate(self, cand):
+        if cand not in self.all_object_types:
+            cand_array = [-1,0,0]
+        else:
+            # if candidates in the array
+            if cand not in self.objType2Index:
+                # if it is structure object
+                cand_array = [1, 0, 0]
+            else:
+                info = self.object_info[self.objType2Index[cand]]
+                # if it a normal object
+                dist = info["distance"]
+                visible = 1 if info["visible"] else 0
+                cand_array = [1, dist, visible]
         
+        return cand_array
+    
+    def get_answer_array_for_all_candidates(self, indicates:list):
+        '''
+        Get the answer array the query of all object types indicating by a bool array
+        input:
+            indicates: a bool array of the same length as candidates
+        output:
+            array: len(indicates) x question_num
+        '''
+        answer_array = []
+        assert len(indicates) == len(FrameInfo.candidates)
+        for i, query_or_not in enumerate(indicates):
+            if query_or_not:
+                cand_array = self.get_answer_array_for_one_candidate(FrameInfo.candidates[i])
+            else:
+                cand_array = [0, 0, 0]
+            
+            answer_array.extend(cand_array)
+
+        return answer_array
+
+
 
 
 # def get_event_info(event:Event, only_obj=False):
