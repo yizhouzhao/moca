@@ -30,6 +30,27 @@ class PolicyNetwork(nn.Module):
         return action, m.log_prob(action)
 
 
+class ValueNetwork(nn.Module):
+    def __init__(self, state_dim, hidden_dim):
+        super().__init__()
+        self.state_dim = state_dim
+        self.hidden_dim = hidden_dim
+        self.action_dim = action_dim
+
+        self.linear = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1),
+        )
+
+    def forward(self, s, a):
+        x = torch.cat([s, a], dim = 1)
+        x = self.linear(x)
+        return x
+
+
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim):
         super().__init__()

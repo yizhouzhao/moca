@@ -1,7 +1,7 @@
 from yz.nav_tools import FrameInfo
 from yz.params import *
 from yz.rl_policy import PolicyNetwork, QNetwork
-from yz.utils import soft_update_from_to
+from yz.utils import soft_update_from_to, softmax
 
 from ai2thor.controller import Controller
 from collections import deque
@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-class QueryAgent():
+class QueryAgentSAC():
     def __init__(self, scene, target, room_object_types = G_livingroom_objtype):
         # ai2thor
         self.scene = scene
@@ -72,6 +72,10 @@ class QueryAgent():
         self.n_train_steps_total = 0
         self.episode_steps = 0
         self.episode_total_reward = 0
+        self.episode_policy_loss = []
+        self.episode_pf1_loss = []
+        self.episode_pf2_loss = []
+        
 
         # policy network
         self.input_dim = len(self.observation)
@@ -81,15 +85,15 @@ class QueryAgent():
 
         self.qf1 = QNetwork(self.input_dim , self.action_dim, self.hidden_dim)
         self.qf2 = QNetwork(self.input_dim , self.action_dim, self.hidden_dim)
-        self.target_q1 = QNetwork(self.input_dim , self.action_dim, self.hidden_dim)
-        self.target_q2 = QNetwork(self.input_dim , self.action_dim, self.hidden_dim)
+        self.target_qf1 = QNetwork(self.input_dim , self.action_dim, self.hidden_dim)
+        self.target_qf2 = QNetwork(self.input_dim , self.action_dim, self.hidden_dim)
         
         if self.use_gpu:
             self.policy = self.policy.cuda()
             self.qf1 = self.qf1.cuda()
             self.qf2 = self.qf2.cuda()
-            self.target_q1 = self.target_q1.cuda()
-            self.target_q2 = self.target_q2.cuda()
+            self.target_qf1 = self.target_qf1.cuda()
+            self.target_qf2 = self.target_qf2.cuda()
 
         # loss
         self.qf_criterion = nn.MSELoss()
@@ -112,14 +116,14 @@ class QueryAgent():
         self.update_target_networks()
     
     def update_target_networks(self):
-        soft_update_from_to(self.qf1, self.target_q1, self.soft_target_tau)
-        soft_update_from_to(self.qf2, self.target_q2, self.soft_target_tau)
+        soft_update_from_to(self.qf1, self.target_qf1, self.soft_target_tau)
+        soft_update_from_to(self.qf2, self.target_qf2, self.soft_target_tau)
     
-    def take_action(self, epsilon = 0.2):
+    def take_action(self, epsilon = 0.2, print_action = False):
         current_state = self.observation
 
         if np.random.rand() < epsilon:
-            action_code = np.random.randint(6)
+            action_code = np.random.randint(self.action_dim)
         else:
             current_state_tensor = torch.FloatTensor(current_state).unsqueeze(0)
             if self.use_gpu:
@@ -129,6 +133,8 @@ class QueryAgent():
             action_code = torch.argmax(action, dim = -1)[0].item()
             #print(action_code)
 
+        if print_action:
+            print("Agent action: ", action_code)
         self.step(action_code)
         next_observation = self.get_observation()
         
@@ -161,15 +167,13 @@ class QueryAgent():
                     self.episode_done = True
                 break
 
-        self.history.append([self.observation.copy(), action_code, reward, next_observation, self.episode_done])
+        self.history.append([self.observation.copy(), action_code, reward, next_observation.copy(), self.episode_done])
         
         self.observation = next_observation
 
         self.episode_steps += 1
         self.episode_total_reward += reward
         
-
-
     def step(self, action_code:int):
         self.last_action = action_code
         self.event = self.controller.step(G_action_code2action[action_code])
@@ -206,9 +210,19 @@ class QueryAgent():
 
         return state
 
+    def sample_history(self, strategy="positive first"):
+        all_indexes = np.arange(len(self.history))
+        all_rewards = np.asarray([h[2] for h in self.history])
+        sample_prob = softmax(all_rewards)
+        sample_indexes = np.random.choice(all_indexes, size=self.batch_size, replace=True, p=sample_prob)
+
+        return [self.history[index] for index in sample_indexes]
+
     def learn(self):
         # sample history
-        sample_list = random.sample(self.history, self.batch_size)
+        # sample_list = random.sample((self.history), self.batch_size)
+        sample_list = self.sample_history()
+
         s0 = [sample_list[i][0] for i in range(self.batch_size)]
         a = [[1 if j == sample_list[i][1] else 0 for j in range(self.action_dim)] for i in range(self.batch_size)]
         r = [[sample_list[i][2]] for i in range(self.batch_size)]
@@ -249,7 +263,7 @@ class QueryAgent():
         new_next_actions, new_log_pi = self.policy.sample_action_with_prob(s1)
         new_log_pi = new_log_pi.unsqueeze(-1)
 
-        target_q_values = torch.min(self.target_q1(s1, new_next_actions),self.target_q2(s1, new_next_actions)) - self.alpha * new_log_pi
+        target_q_values = torch.min(self.target_qf1(s1, new_next_actions),self.target_qf2(s1, new_next_actions)) - self.alpha * new_log_pi
 
         q_target = r + (1. - d) * self.gamma * target_q_values
 
@@ -274,6 +288,12 @@ class QueryAgent():
         if self.n_train_steps_total % self.target_update_period == 0:
             self.update_target_networks()
 
+        # record
+        self.episode_policy_loss.append(policy_loss.item())
+        self.episode_pf1_loss.append(qf1_loss.item())
+        self.episode_pf2_loss.append(qf2_loss.item())
+        
+
     def reset_scene_and_target(self, scene: str, target: str):
         self.controller.reset(scene=scene)
         self.target_type = target
@@ -283,6 +303,21 @@ class QueryAgent():
         self.episode_done = False
         self.episode_steps = 0
         self.episode_total_reward = 0
+        self.episode_policy_loss.clear()
+        self.episode_pf1_loss.clear()
+        self.episode_pf2_loss.clear()
+        self.first_seen = False
+        self.first_in_range = False
 
     def close(self):
         self.controller.stop()
+
+    def save_model(self):
+        from datetime import datetime
+        now = datetime.now()
+        time_str = now.strftime("%H:%M:%S")
+        torch.save(self.qf1.state_dict(), "record/qf1_" + time_str + ".pth")
+        torch.save(self.qf2.state_dict(), "record/qf2_" + time_str + ".pth")
+        torch.save(self.qf2.state_dict(), "record/policy_" + time_str + ".pth")
+
+
