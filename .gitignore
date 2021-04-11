@@ -157,3 +157,4 @@ exp/
 gen/ff_planner/
 
 weight_maskrcnn.pt
+record/
